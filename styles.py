@@ -246,6 +246,11 @@ body {
 }
 
 /* Chat */
+.chat-col-card {
+  display: flex;
+  flex-direction: column;
+  height: 600px;
+}
 .chat-header {
   padding: 16px 20px;
   border-bottom: 1px solid var(--line);
@@ -261,12 +266,41 @@ body {
 }
 .chat-history {
   padding: 20px;
-  min-height: 400px;
-  max-height: 600px;
   overflow-y: auto;
   line-height: 1.6;
   font-size: 14px;
   white-space: pre-wrap;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chat-msg {
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  max-width: 90%;
+}
+.msg-user {
+  align-self: flex-end;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-bottom-right-radius: 4px;
+}
+.msg-bot {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  border-bottom-left-radius: 4px;
+}
+.msg-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-soft);
+  margin-bottom: 6px;
+}
+.msg-content {
+  color: var(--text-main);
+  word-break: break-word;
 }
 
 /* Empty States */

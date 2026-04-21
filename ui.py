@@ -10,35 +10,6 @@ from arena.models import ModelSpec, discover_models
 from arena.storage import load_benchmark_db, load_results_db
 
 
-def render_model_gallery(specs: list[ModelSpec]) -> str:
-    if not specs:
-        return """
-        <div class="empty-state">
-          <div class="empty-title">没有找到可用的 GGUF 聊天模型</div>
-          <div class="empty-subtitle">请确认模型位于 E:\\local_LLM\\Models_Repo，且文件名不是 mmproj。</div>
-        </div>
-        """
-    cards: list[str] = []
-    for index, spec in enumerate(specs, start=1):
-        meta_badges = ""
-        if spec.params:
-            meta_badges += f'<span class="meta-badge params">{html.escape(spec.params)}</span>'
-        if spec.quant:
-            meta_badges += f'<span class="meta-badge quant">{html.escape(spec.quant)}</span>'
-        meta_badges += f'<span class="meta-badge size">{spec.size_gb:.1f} GB</span>'
-        cards.append(
-            f"""
-            <div class="model-card">
-              <div class="model-index">#{index:02d}</div>
-              <div class="model-name">{html.escape(Path(spec.path).stem)}</div>
-              <div class="model-meta">{meta_badges}</div>
-              <div class="model-path">{html.escape(spec.relative_path)}</div>
-            </div>
-            """
-        )
-    return f'<div class="model-grid">{"".join(cards)}</div>'
-
-
 def inject_html_preview(text: str) -> str:
     escaped_text = html.escape(text).replace("\n", "<br>")
     
@@ -68,51 +39,6 @@ def inject_html_preview(text: str) -> str:
         escaped_text = f'<div class="html-preview-container">{"".join(btns)}</div>' + escaped_text
         
     return escaped_text
-
-def render_result_cards(results: list[dict[str, Any]]) -> str:
-    if not results:
-        return """
-        <div class="empty-state">
-          <div class="empty-title">等待开始对比</div>
-          <div class="empty-subtitle">输入指令后，程序会按顺序加载每个模型，并在独立上下文中分别生成答案。</div>
-        </div>
-        """
-    cards: list[str] = []
-    for item in results:
-        status_class = {
-            "等待中": "status-waiting",
-            "加载中": "status-loading",
-            "生成中": "status-generating",
-            "已完成": "status-done",
-            "失败": "status-failed",
-        }.get(item["status"], "status-waiting")
-        elapsed = item.get("elapsed", "")
-        elapsed_badge = f'<span class="mini-badge">{html.escape(elapsed)}</span>' if elapsed else ""
-        perf = item.get("perf", "")
-        perf_badge = f'<span class="mini-badge perf">{html.escape(perf)}</span>' if perf else ""
-        answer = inject_html_preview(item.get("answer", ""))
-        detail = html.escape(item.get("detail", ""))
-        cards.append(
-            f"""
-            <div class="result-card">
-              <div class="result-card-header">
-                <div>
-                  <div class="result-title">{html.escape(item["name"])}</div>
-                  <div class="result-subtitle">{html.escape(item["path"])}</div>
-                </div>
-                <div class="result-badges">
-                  <span class="status-pill {status_class}">{html.escape(item["status"])}</span>
-                  {elapsed_badge}
-                  {perf_badge}
-                </div>
-              </div>
-              <div class="result-detail">{detail}</div>
-              <div class="result-answer">{answer or "..."}</div>
-            </div>
-            """
-        )
-    return f'<div class="result-grid">{"".join(cards)}</div>'
-
 
 def render_leaderboard() -> str:
     db = load_results_db()
@@ -181,21 +107,65 @@ def render_benchmark_table() -> str:
     """
 
 
-def render_chat_history(messages_text: str, model_info: dict[str, Any]) -> str:
-    loaded = model_info.get("loaded", False)
-    name = model_info.get("name", "未选择")
-    status_color = "#57d39b" if loaded else "#ff7b8c"
-    status_text = "已加载" if loaded else "未加载"
-    badges = f'<span style="color:{status_color};font-weight:700;">● {status_text}</span>'
-    if model_info.get("params"):
-        badges += f' <span class="meta-badge params">{html.escape(model_info["params"])}</span>'
-    if model_info.get("quant"):
-        badges += f' <span class="meta-badge quant">{html.escape(model_info["quant"])}</span>'
-    history_html = inject_html_preview(messages_text)
-    return f"""
-    <div class="chat-header">
-      <div class="chat-model-name">{html.escape(name)}</div>
-      <div class="chat-model-status">{badges}</div>
-    </div>
-    <div class="chat-history">{history_html}</div>
-    """
+def render_multi_chat(histories: dict[str, list[dict[str, str]]], statuses: dict[str, dict[str, str]]) -> str:
+    active_models = [m for m in histories.keys() if (not statuses or m in statuses)]
+    if not histories or not active_models:
+        return """
+        <div class="empty-state">
+          <div class="empty-title">等待指令输入</div>
+          <div class="empty-subtitle">输入内容后，系统将按顺序调度所选模型进行独立上下文对话。</div>
+        </div>
+        """
+    cards: list[str] = []
+    for model_name in active_models:
+        messages = histories[model_name]
+        info = statuses.get(model_name, {})
+        status_text = info.get("status", "等待中")
+        perf_text = info.get("perf", "")
+        
+        status_class = {
+            "等待中": "status-waiting",
+            "加载中": "status-loading",
+            "生成中": "status-generating",
+            "已完成": "status-done",
+            "失败": "status-failed",
+        }.get(status_text, "status-waiting")
+        
+        badges = f'<span class="status-pill {status_class}">{html.escape(status_text)}</span>'
+        if perf_text:
+            badges += f'<span class="meta-badge size" style="margin-bottom:0;">{html.escape(perf_text)}</span>'
+            
+        chat_lines = []
+        for msg in messages:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            if role == "system":
+                continue  # 隐藏 system prompt，不显示在聊天流中
+            
+            is_user = role == "user"
+            prefix = "👤 User" if is_user else f"🤖 {html.escape(model_name)}"
+            msg_class = "msg-user" if is_user else "msg-bot"
+            
+            # 只有 assistant 的消息需要渲染 HTML 预览
+            display_content = html.escape(content).replace("\n", "<br>") if is_user else inject_html_preview(content)
+            
+            chat_lines.append(f"""
+            <div class="chat-msg {msg_class}">
+                <div class="msg-author">{prefix}</div>
+                <div class="msg-content">{display_content}</div>
+            </div>
+            """)
+            
+        cards.append(f"""
+        <div class="result-card chat-col-card" style="padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+            <div class="chat-header">
+                <div class="chat-model-name">{html.escape(model_name)}</div>
+                <div class="chat-model-status">{badges}</div>
+            </div>
+            <div class="chat-history" style="flex: 1; border-radius: 0; border: none; background: transparent;">
+                {"".join(chat_lines)}
+            </div>
+        </div>
+        """)
+        
+    return f'<div class="result-grid">{"".join(cards)}</div>'
