@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import html
+import re
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +39,24 @@ def render_model_gallery(specs: list[ModelSpec]) -> str:
     return f'<div class="model-grid">{"".join(cards)}</div>'
 
 
+def inject_html_preview(text: str) -> str:
+    escaped_text = html.escape(text).replace("\n", "<br>")
+    
+    html_blocks = re.findall(r"```html\s*(.*?)\s*```", text, flags=re.DOTALL | re.IGNORECASE)
+    if not html_blocks and (text.strip().lower().startswith("<!doctype html>") or text.strip().lower().startswith("<html")):
+        html_blocks = [text.strip()]
+        
+    if html_blocks:
+        btns = []
+        for i, block in enumerate(html_blocks):
+            encoded_html = urllib.parse.quote(block)
+            data_uri = f"data:text/html;charset=utf-8,{encoded_html}"
+            btns.append(f'<a href="{data_uri}" target="_blank" class="html-preview-btn">🚀 新标签页打开 HTML 预览</a>')
+        
+        escaped_text = f'<div class="html-preview-container">{"".join(btns)}</div>' + escaped_text
+        
+    return escaped_text
+
 def render_result_cards(results: list[dict[str, Any]]) -> str:
     if not results:
         return """
@@ -58,7 +78,7 @@ def render_result_cards(results: list[dict[str, Any]]) -> str:
         elapsed_badge = f'<span class="mini-badge">{html.escape(elapsed)}</span>' if elapsed else ""
         perf = item.get("perf", "")
         perf_badge = f'<span class="mini-badge perf">{html.escape(perf)}</span>' if perf else ""
-        answer = html.escape(item.get("answer", "")).replace("\n", "<br>")
+        answer = inject_html_preview(item.get("answer", ""))
         detail = html.escape(item.get("detail", ""))
         cards.append(
             f"""
@@ -128,6 +148,9 @@ def render_benchmark_table() -> str:
               <td>{data.get('ttft_ms',0):.0f}</td>
               <td>{'✅' if data.get('needle_pass') else '❌'}</td>
               <td>{data.get('logprob',0):.3f}</td>
+              <td>{'✅' if data.get('json_adherence') else '❌'}</td>
+              <td>{'✅' if data.get('math_logic') else '❌'}</td>
+              <td>{'✅' if data.get('multilingual') else '❌'}</td>
             </tr>
             """
         )
@@ -138,6 +161,7 @@ def render_benchmark_table() -> str:
           <th>模型</th><th>VRAM(MiB)</th><th>MaxCtx</th>
           <th>Prefill2K</th><th>Decode512</th><th>TTFT(ms)</th>
           <th>Needle</th><th>Logprob</th>
+          <th>JSON</th><th>逻辑</th><th>多语言</th>
         </tr>
       </thead>
       <tbody>{''.join(rows)}</tbody>
@@ -155,7 +179,7 @@ def render_chat_history(messages_text: str, model_info: dict[str, Any]) -> str:
         badges += f' <span class="meta-badge params">{html.escape(model_info["params"])}</span>'
     if model_info.get("quant"):
         badges += f' <span class="meta-badge quant">{html.escape(model_info["quant"])}</span>'
-    history_html = html.escape(messages_text).replace("\n", "<br>")
+    history_html = inject_html_preview(messages_text)
     return f"""
     <div class="chat-header">
       <div class="chat-model-name">{html.escape(name)}</div>

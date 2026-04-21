@@ -23,6 +23,9 @@ class BenchmarkResult:
     ttft_ms: float = 0.0
     needle_pass: bool = False
     logprob: float = 0.0
+    json_adherence: bool = False
+    math_logic: bool = False
+    multilingual: bool = False
     timestamp: str = field(default_factory=lambda: time.strftime("%Y-%m-%d %H:%M:%S"))
 
 
@@ -103,6 +106,33 @@ def run_benchmark_single(name: str, path: str, progress_cb: Callable[[str], None
         except Exception:
             res.logprob = 0.0
 
+        progress_cb(f"[{name}] 测试 JSON 遵循度...")
+        try:
+            json_prompt = "User: Return a JSON object with keys 'name' (string) and 'age' (int) for a 30 year old named Alice. ONLY return valid JSON, no other text.\nAssistant: "
+            out = llm.create_completion(prompt=json_prompt, max_tokens=128, temperature=0.0)
+            answer = out["choices"][0]["text"].strip()
+            res.json_adherence = '{"name"' in answer.replace(" ", "") and "30" in answer
+        except Exception:
+            res.json_adherence = False
+
+        progress_cb(f"[{name}] 测试多语言混合边界...")
+        try:
+            multi_prompt = "User: Translate 'Apple' to French, Japanese, and Emoji. Format: fr:X, jp:Y, emoji:Z\nAssistant: "
+            out = llm.create_completion(prompt=multi_prompt, max_tokens=64, temperature=0.0)
+            answer = out["choices"][0]["text"].strip().lower()
+            res.multilingual = "pomme" in answer and ("りんご" in answer or "リンゴ" in answer) and "🍎" in answer
+        except Exception:
+            res.multilingual = False
+
+        progress_cb(f"[{name}] 测试逻辑推理边界...")
+        try:
+            math_prompt = "User: If x = 5 and y = x * 3 - 2, what is x + y? Answer with just the number.\nAssistant: "
+            out = llm.create_completion(prompt=math_prompt, max_tokens=16, temperature=0.0)
+            answer = out["choices"][0]["text"].strip()
+            res.math_logic = "18" in answer
+        except Exception:
+            res.math_logic = False
+
         llm.close()
         gc.collect()
         progress_cb(f"[{name}] 完成！")
@@ -138,6 +168,9 @@ def run_benchmark_all(selected_model_paths: list[str]):
             "ttft_ms": res.ttft_ms,
             "needle_pass": res.needle_pass,
             "logprob": res.logprob,
+            "json_adherence": res.json_adherence,
+            "math_logic": res.math_logic,
+            "multilingual": res.multilingual,
             "timestamp": res.timestamp,
         }
         save_benchmark_db(db)
