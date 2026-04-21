@@ -42,17 +42,29 @@ def render_model_gallery(specs: list[ModelSpec]) -> str:
 def inject_html_preview(text: str) -> str:
     escaped_text = html.escape(text).replace("\n", "<br>")
     
+    # 查找所有的 ```html ... ``` 块
     html_blocks = re.findall(r"```html\s*(.*?)\s*```", text, flags=re.DOTALL | re.IGNORECASE)
+    
+    # 如果没有找到 ```html，但整个文本像是 HTML 文档
     if not html_blocks and (text.strip().lower().startswith("<!doctype html>") or text.strip().lower().startswith("<html")):
         html_blocks = [text.strip()]
         
     if html_blocks:
         btns = []
         for i, block in enumerate(html_blocks):
-            encoded_html = urllib.parse.quote(block)
-            data_uri = f"data:text/html;charset=utf-8,{encoded_html}"
-            btns.append(f'<a href="{data_uri}" target="_blank" class="html-preview-btn">🚀 新标签页打开 HTML 预览</a>')
+            # 将 HTML 内容 Base64 编码以防止被转义和截断
+            import base64
+            encoded_html = base64.b64encode(block.encode('utf-8')).decode('utf-8')
+            # 直接通过 onclick 事件触发新窗口打开 Base64 内容
+            btns.append(f'''
+            <button onclick="
+                const win = window.open('', '_blank');
+                win.document.write(decodeURIComponent(escape(atob('{encoded_html}'))));
+                win.document.close();
+            " class="html-preview-btn">🚀 在新标签页中全屏预览 HTML ({i+1})</button>
+            ''')
         
+        # 将按钮注入到回答的最上方
         escaped_text = f'<div class="html-preview-container">{"".join(btns)}</div>' + escaped_text
         
     return escaped_text

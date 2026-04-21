@@ -176,17 +176,18 @@ def chat_set_system(system_prompt: str) -> str:
 
 initial_specs = discover_models()
 
-with gr.Blocks(title=APP_TITLE) as demo:
+with gr.Blocks(title=APP_TITLE, theme=gr.themes.Base()) as demo:
     gr.HTML(
         """
-        <div class="app-shell">
-          <div class="hero">
-            <div class="hero-title">Llama.cpp 多模型竞技场 Pro</div>
-            <div class="hero-subtitle">
+        <div class="panel" style="margin-bottom: 24px; background: linear-gradient(145deg, rgba(24, 24, 27, 0.9), rgba(9, 9, 11, 0.95)); border-color: rgba(59, 130, 246, 0.2);">
+            <div style="font-size: 28px; font-weight: 700; color: #fafafa; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;">
+                <span style="display: inline-block; width: 12px; height: 12px; background: #3b82f6; border-radius: 50%; box-shadow: 0 0 12px #3b82f6;"></span>
+                Llama.cpp 多模型竞技场 Pro
+            </div>
+            <div style="color: #a1a1aa; font-size: 14px; line-height: 1.6; max-width: 800px;">
               自动扫描 <b>E:\\local_LLM\\Models_Repo</b> 下的 GGUF 模型，
               支持<b>顺序对战</b>、<b>速度排行榜</b>、<b>边界能力基准测试</b>、<b>单模型聊天</b>。
             </div>
-          </div>
         </div>
         """
     )
@@ -405,6 +406,5 @@ if __name__ == "__main__":
         server_name="0.0.0.0",
         server_port=7866,
         share=False,
-        theme=gr.themes.Soft(),
         css=CUSTOM_CSS,
     )
