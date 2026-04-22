@@ -12,26 +12,67 @@ from arena.models import discover_models, get_spec_map
 from arena.storage import load_results_db, save_results_db
 from arena.styles import CUSTOM_CSS
 from arena.ui import (
-    render_auto_scroll_js,
     render_benchmark_table,
-    render_export_button,
-    render_header_html,
     render_leaderboard,
-    render_model_cards,
     render_multi_chat,
-    render_sidebar_nav_js,
     render_stats_dashboard,
+    render_export_button,
     render_comparison,
-    render_single_chat,
+    render_header_html,
+    render_model_cards,
+    render_sidebar_nav_js,
+    render_auto_scroll_js,
     render_prompt_templates,
 )
 from arena.benchmark import run_benchmark_all
 
+# Discover initial models
 initial_specs = discover_models()
 
 
 def clear_multi_chat():
-    return {}, render_multi_chat({}, {}), "", "🧹 历史记录已清空~"
+    return {}, [], "", "", "🧹 历史记录已清空~"
+
+
+def update_chat_display(histories: dict[str, list[dict[str, str]]]):
+    """Format histories into Gradio Chatbot format (list of [user, bot] pairs)"""
+    chat_pairs = []
+    # Collect all messages chronologically across models, or group by model?
+    # For a unified Chatbot, we need a single list of messages.
+    # We will format bot messages with model names.
+    
+    # We need to construct a sequence of user -> [bot1, bot2...] pairs.
+    # Since Gradio Chatbot expects [user_msg, bot_msg] pairs, and we have multiple bots,
+    # we can concatenate bot responses for the same user prompt, or yield multiple pairs.
+    
+    # Simple approach: rebuild from histories assuming synchronized turns
+    if not histories:
+        return []
+        
+    models = list(histories.keys())
+    if not models:
+        return []
+        
+    num_messages = len(histories[models[0]])
+    for i in range(num_messages):
+        msg = histories[models[0]][i]
+        if msg["role"] == "system":
+            continue
+        elif msg["role"] == "user":
+            user_text = msg["content"]
+            bot_text_parts = []
+            
+            # Find the corresponding assistant messages in the next index (i+1)
+            if i + 1 < num_messages:
+                for m in models:
+                    if i + 1 < len(histories[m]) and histories[m][i+1]["role"] == "assistant":
+                        ans = histories[m][i+1]["content"]
+                        bot_text_parts.append(f"**🤖 {m}**:\n{ans}")
+            
+            bot_text = "\n\n---\n\n".join(bot_text_parts) if bot_text_parts else "..."
+            chat_pairs.append([user_text, bot_text])
+            
+    return chat_pairs
 
 
 def multi_chat_sequential(
@@ -50,17 +91,17 @@ def multi_chat_sequential(
 ):
     prompt = (user_prompt or "").strip()
     if not prompt:
-        yield "", histories, render_multi_chat(histories, {}), "", "", "⚠️ 请输入你的指令后再开始生成~"
+        yield "", histories, update_chat_display(histories), "", "", "⚠️ 请输入你的指令后再开始生成~"
         return
 
     if not selected_model_paths:
-        yield "", histories, render_multi_chat(histories, {}), "", "", "⚠️ 请至少选择一个模型~"
+        yield "", histories, update_chat_display(histories), "", "", "⚠️ 请至少选择一个模型~"
         return
 
     spec_map = get_spec_map()
     ordered_specs = [spec_map[p] for p in selected_model_paths if p in spec_map]
     if not ordered_specs:
-        yield "", histories, render_multi_chat(histories, {}), "", "", "⚠️ 请至少选择一个有效的模型~"
+        yield "", histories, update_chat_display(histories), "", "", "⚠️ 请至少选择一个有效的模型~"
         return
 
     for spec in ordered_specs:
@@ -71,14 +112,14 @@ def multi_chat_sequential(
 
     statuses = {Path(spec.path).stem: {"status": "等待中"} for spec in ordered_specs}
 
-    yield "", histories, render_multi_chat(histories, statuses), render_stats_dashboard(histories, statuses), render_export_button(histories), f"🎯 已进入队列，共 {len(ordered_specs)} 个模型，准备顺序执行~"
+    yield "", histories, update_chat_display(histories), render_stats_dashboard(histories, statuses), render_export_button(histories), f"🎯 已进入队列，共 {len(ordered_specs)} 个模型，准备顺序执行~"
 
     results_for_db = []
 
     for idx, spec in enumerate(ordered_specs):
         name = Path(spec.path).stem
         statuses[name] = {"status": "加载中"}
-        yield "", histories, render_multi_chat(histories, statuses), render_stats_dashboard(histories, statuses), render_export_button(histories), f"📦 正在处理第 {idx + 1}/{len(ordered_specs)} 个模型：{name}"
+        yield "", histories, update_chat_display(histories), render_stats_dashboard(histories, statuses), render_export_button(histories), f"📦 正在处理第 {idx + 1}/{len(ordered_specs)} 个模型：{name}"
 
         histories[name].append({"role": "assistant", "content": ""})
         messages_for_llm = histories[name][:-1]
@@ -100,7 +141,7 @@ def multi_chat_sequential(
                 final_result = result
                 statuses[name] = result
                 histories[name][-1]["content"] = result.get("answer", "")
-                yield "", histories, render_multi_chat(histories, statuses), render_stats_dashboard(histories, statuses), render_export_button(histories), f"[{name}] {result.get('status')}..."
+                yield "", histories, update_chat_display(histories), render_stats_dashboard(histories, statuses), render_export_button(histories), f"[{name}] {result.get('status')}..."
         except Exception as exc:
             total_elapsed = 0
             final_result = {"status": "失败", "detail": f"运行异常：{exc}", "elapsed": f"{total_elapsed:.1f}s", "tps": 0, "answer": histories[name][-1]["content"]}
@@ -128,7 +169,7 @@ def multi_chat_sequential(
 
     comparison_html = render_comparison(histories, statuses)
 
-    yield "", histories, render_multi_chat(histories, statuses), render_stats_dashboard(histories, statuses) + comparison_html, render_export_button(histories), f"🎉 全部处理结束：✅ 成功 {len(completed)} 个，❌ 失败 {len(failed)} 个~"
+    yield "", histories, update_chat_display(histories), render_stats_dashboard(histories, statuses) + comparison_html, render_export_button(histories), f"🎉 全部处理结束：✅ 成功 {len(completed)} 个，❌ 失败 {len(failed)} 个~"
 
     db_entry = {
         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -247,9 +288,8 @@ def change_view(view_name):
 with gr.Blocks(
     title=APP_TITLE,
     theme=gr.themes.Base(
-        primary_hue="orange",
-        secondary_hue="stone",
-        neutral_hue="stone",
+        primary_hue="blue",
+        neutral_hue="slate",
         font=gr.themes.GoogleFont("Noto Sans SC"),
         font_mono=gr.themes.GoogleFont("Fira Code"),
     ),
@@ -338,7 +378,7 @@ with gr.Blocks(
                         user_prompt = gr.Textbox(
                             show_label=False,
                             placeholder="💬 输入指令，按 Enter 发送...",
-                            lines=2,
+                            lines=3,
                             elem_id="chat-input",
                             scale=8,
                         )
@@ -420,7 +460,7 @@ with gr.Blocks(
     clear_chat_btn.click(
         fn=clear_multi_chat,
         inputs=None,
-        outputs=[chat_histories, chat_display, status_md],
+        outputs=[chat_histories, chat_display, stats_display, export_display, status_md],
     )
 
     single_send_btn.click(
@@ -499,4 +539,10 @@ if __name__ == "__main__":
         server_name="0.0.0.0",
         server_port=7866,
         share=False,
+        theme=gr.themes.Base(
+            primary_hue="blue",
+            secondary_hue="gray",
+            neutral_hue="slate",
+        ),
+        css=CUSTOM_CSS,
     )
