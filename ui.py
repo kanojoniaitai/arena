@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from arena.models import ModelSpec, discover_models
-from arena.storage import load_benchmark_db, load_results_db
+from models import ModelSpec, discover_models
+from storage import load_benchmark_db, load_results_db
 
 
 def render_markdown_to_html(text: str) -> str:
@@ -387,6 +387,81 @@ def _render_chat_messages(messages: list[dict[str, str]], model_name: str) -> st
         </div>
         """)
     return "".join(chat_lines)
+
+
+def render_multi_chat(histories: dict[str, list[dict[str, str]]], statuses: dict[str, dict[str, str]]) -> str:
+    """Render multiple model chat histories in a grid layout"""
+    if not histories:
+        return """
+        <div class="empty-state">
+          <div class="empty-title">💭 等待指令输入</div>
+          <div class="empty-subtitle">✨ 输入内容后，系统将按顺序调度所选模型进行独立上下文对话~</div>
+        </div>
+        """
+
+    active_models = [m for m in histories.keys() if (not statuses or m in statuses)]
+    if not active_models:
+        return """
+        <div class="empty-state">
+          <div class="empty-title">💭 等待指令输入</div>
+          <div class="empty-subtitle">✨ 输入内容后，系统将按顺序调度所选模型进行独立上下文对话~</div>
+        </div>
+        """
+
+    cards: list[str] = []
+    for model_name in active_models:
+        messages = histories[model_name]
+        info = statuses.get(model_name, {}) if statuses else {}
+        status_text = info.get("status", "等待中")
+        perf_text = info.get("perf", "")
+
+        status_class = {
+            "等待中": "status-waiting",
+            "加载中": "status-loading",
+            "生成中": "status-generating",
+            "已完成": "status-done",
+            "失败": "status-failed",
+        }.get(status_text, "status-waiting")
+
+        status_emoji = {
+            "等待中": "⏳",
+            "加载中": "📦",
+            "生成中": "✍️",
+            "已完成": "✅",
+            "失败": "❌",
+        }.get(status_text, "⏳")
+
+        badges = f'<span class="status-pill {status_class}">{status_emoji} {html.escape(status_text)}</span>'
+        if perf_text:
+            badges += f'<span class="meta-badge size" style="margin-bottom:0">{html.escape(perf_text)}</span>'
+
+        chat_html = _render_chat_messages(messages, model_name)
+
+        typing_html = ""
+        if status_text == "生成中":
+            typing_html = """
+            <div class="typing-indicator">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <span>✍️ 生成中...</span>
+            </div>
+            """
+
+        cards.append(f"""
+        <div class="result-card chat-col-card" style="padding:0;overflow:hidden;display:flex;flex-direction:column">
+            <div class="chat-header">
+                <div class="chat-model-name">🤖 {html.escape(model_name)}</div>
+                <div class="chat-model-status">{badges}</div>
+            </div>
+            <div class="chat-history">
+                {chat_html}
+                {typing_html}
+            </div>
+        </div>
+        """)
+
+    return f'<div class="result-grid">{"".join(cards)}</div>'
 
 
 def render_single_chat(messages: list[dict[str, str]], model_name: str, status: str = "", perf: str = "") -> str:

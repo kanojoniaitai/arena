@@ -6,7 +6,7 @@ from typing import Any, Generator
 
 from llama_cpp import Llama
 
-from arena.models import ModelSpec
+from models import ModelSpec
 
 
 def extract_stream_text(chunk: dict[str, Any]) -> str:

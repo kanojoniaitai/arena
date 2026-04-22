@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from arena.config import BENCHMARK_DB, RESULTS_DB
+from config import BENCHMARK_DB, RESULTS_DB
 
 
 def load_results_db() -> list[dict[str, Any]]:

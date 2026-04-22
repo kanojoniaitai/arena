@@ -6,15 +6,16 @@ from typing import Any
 
 import gradio as gr
 
-from arena.config import APP_TITLE, DEFAULT_SYSTEM_PROMPT
-from arena.engine import run_single_model
-from arena.models import discover_models, get_spec_map
-from arena.storage import load_results_db, save_results_db
-from arena.styles import CUSTOM_CSS
-from arena.ui import (
+from config import APP_TITLE, DEFAULT_SYSTEM_PROMPT
+from engine import run_single_model
+from models import discover_models, get_spec_map
+from storage import load_results_db, save_results_db
+from styles import CUSTOM_CSS
+from ui import (
     render_benchmark_table,
     render_leaderboard,
     render_multi_chat,
+    render_single_chat,
     render_stats_dashboard,
     render_export_button,
     render_comparison,
@@ -24,7 +25,7 @@ from arena.ui import (
     render_auto_scroll_js,
     render_prompt_templates,
 )
-from arena.benchmark import run_benchmark_all
+from benchmark import run_benchmark_all
 
 # Discover initial models
 initial_specs = discover_models()
@@ -510,7 +511,7 @@ with gr.Blocks(
     )
 
     def clear_leaderboard():
-        from arena.storage import save_results_db
+        from storage import save_results_db
         save_results_db([])
         return render_leaderboard()
 

@@ -7,8 +7,8 @@ from typing import Any
 
 from llama_cpp import Llama
 
-from arena.engine import stream_answer
-from arena.models import ModelSpec
+from engine import stream_answer
+from models import ModelSpec
 
 
 @dataclass

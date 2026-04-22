@@ -8,8 +8,8 @@ from typing import Any, Callable
 
 from llama_cpp import Llama
 
-from arena.models import ModelSpec
-from arena.storage import load_benchmark_db, save_benchmark_db
+from models import ModelSpec
+from storage import load_benchmark_db, save_benchmark_db
 
 
 @dataclass
@@ -142,7 +142,7 @@ def run_benchmark_single(name: str, path: str, progress_cb: Callable[[str], None
 
 
 def run_benchmark_all(selected_model_paths: list[str]):
-    from arena.models import get_spec_map
+    from models import get_spec_map
     spec_map = get_spec_map()
     specs = [spec_map[p] for p in selected_model_paths if p in spec_map]
     if not specs:
@@ -155,7 +155,7 @@ def run_benchmark_all(selected_model_paths: list[str]):
     def cb(msg: str):
         status_lines.append(msg)
 
-    from arena.ui import render_benchmark_table
+    from ui import render_benchmark_table
     for spec in specs:
         yield render_benchmark_table(), "\n".join(status_lines[-10:])
         res = run_benchmark_single(spec.label, spec.path, cb)

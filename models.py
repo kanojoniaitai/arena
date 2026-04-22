@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from arena.config import BASE_MODEL_DIR
+from config import BASE_MODEL_DIR
 
 
 @dataclass(frozen=True)
