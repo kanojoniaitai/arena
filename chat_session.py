@@ -98,11 +98,13 @@ class ChatSession:
             return "[错误] 模型未加载"
         self.add_user_message(user_input)
         system = self.system_prompt or "你是一名专业、准确、简洁的中文助手。"
+        messages = [{"role": "system", "content": system}]
+        for msg in self.messages:
+            messages.append({"role": msg.role, "content": msg.content})
         response_chunks: list[str] = []
         for token in stream_answer(
             llm=self.llm,
-            system_prompt=system,
-            user_prompt=user_input,
+            messages=messages,
             max_tokens=max_tokens,
             temperature=self.temperature,
             top_p=self.top_p,
