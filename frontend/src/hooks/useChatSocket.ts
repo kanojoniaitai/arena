@@ -8,8 +8,7 @@ interface UseChatSocketReturn {
     modelName: string | undefined,
     groupId: string | undefined,
     message: string,
-    history: { role: string; content: string; sender?: string; display_name?: string; side?: string }[],
-    extra?: { debate_id?: string; story_id?: string; undercover_id?: string; werewolf_id?: string }
+    history: { role: string; content: string; sender?: string; display_name?: string }[]
   ) => void
   isConnected: boolean
 }
@@ -74,8 +73,7 @@ export function useChatSocket(): UseChatSocketReturn {
     modelName: string | undefined,
     groupId: string | undefined,
     message: string,
-    history: { role: string; content: string; sender?: string; display_name?: string; side?: string }[],
-    extra?: { debate_id?: string; story_id?: string; undercover_id?: string; werewolf_id?: string }
+    history: { role: string; content: string; sender?: string; display_name?: string }[]
   ) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       const msg: WSMessage = {
@@ -83,10 +81,6 @@ export function useChatSocket(): UseChatSocketReturn {
         chat_type: chatType,
         model_name: modelName,
         group_id: groupId,
-        debate_id: extra?.debate_id,
-        story_id: extra?.story_id,
-        undercover_id: extra?.undercover_id,
-        werewolf_id: extra?.werewolf_id,
         message,
         history,
       }

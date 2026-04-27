@@ -13,10 +13,6 @@ STATIC_DIR = Path(__file__).parent / "static"
 MODEL_CONFIGS_DB = Path(r"arena_model_configs.json")
 GROUPS_DB = Path(r"arena_groups.json")
 CHAT_HISTORY_DB = Path(r"arena_chat_history.json")
-DEBATES_DB = Path(r"arena_debates.json")
-STORIES_DB = Path(r"arena_stories.json")
-UNDERCOVERS_DB = Path(r"arena_undercovers.json")
-WEREWOLVES_DB = Path(r"arena_werewolves.json")
 LLM_PARAMS = {
     "n_ctx": 8192,
     "max_tokens": 2048,
