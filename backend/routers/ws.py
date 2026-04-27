@@ -154,6 +154,15 @@ def _build_group_messages(
     return messages
 
 
+async def _safe_send_json(websocket: WebSocket, data: dict) -> bool:
+    """安全地发送 JSON 消息，如果连接已关闭则返回 False"""
+    try:
+        await websocket.send_json(data)
+        return True
+    except (WebSocketDisconnect, RuntimeError):
+        return False
+
+
 async def _run_model_stream(
     websocket: WebSocket,
     model_name: str,
@@ -192,7 +201,9 @@ async def _run_model_stream(
                 "token": item,
             }
             payload.update(extra_fields)
-            await websocket.send_json(payload)
+            # 使用安全发送，如果连接断开则提前返回
+            if not await _safe_send_json(websocket, payload):
+                return "".join(full_content)
         except queue.Empty:
             continue
 
@@ -239,7 +250,7 @@ async def _handle_private(
 ):
     spec = get_model_by_name(model_name)
     if spec is None:
-        await websocket.send_json({"type": "error", "message": f"Model '{model_name}' not found"})
+        await _safe_send_json(websocket, {"type": "error", "message": f"Model '{model_name}' not found"})
         return
 
     system_prompt = spec.system_prompt or DEFAULT_SYSTEM_PROMPT
@@ -253,12 +264,15 @@ async def _handle_private(
             "ai_stream_token",
             {}
         )
-        await websocket.send_json({
+        await _safe_send_json(websocket, {
             "type": "ai_complete",
             "model_name": model_name,
         })
+    except (WebSocketDisconnect, RuntimeError):
+        # 连接已断开，静默处理
+        pass
     except Exception as exc:
-        await websocket.send_json({"type": "error", "message": str(exc)})
+        await _safe_send_json(websocket, {"type": "error", "message": str(exc)})
 
 
 async def _handle_group(
@@ -275,12 +289,12 @@ async def _handle_group(
             break
 
     if group is None:
-        await websocket.send_json({"type": "error", "message": f"Group '{group_id}' not found"})
+        await _safe_send_json(websocket, {"type": "error", "message": f"Group '{group_id}' not found"})
         return
 
     members = group.get("members", [])
     if not members:
-        await websocket.send_json({"type": "error", "message": "Group has no members"})
+        await _safe_send_json(websocket, {"type": "error", "message": "Group has no members"})
         return
 
     accumulated_responses: list[dict[str, str]] = []
@@ -308,14 +322,19 @@ async def _handle_group(
                 "display_name": display_name,
                 "content": content,
             }
-            await websocket.send_json(result)
+            if not await _safe_send_json(websocket, result):
+                return  # 连接已断开，提前退出
 
             accumulated_responses.append({
                 "model_name": member_name,
                 "display_name": display_name,
                 "content": content,
             })
+        except (WebSocketDisconnect, RuntimeError):
+            # 连接已断开，提前退出
+            return
         except Exception as exc:
-            await websocket.send_json({"type": "error", "message": str(exc)})
+            if not await _safe_send_json(websocket, {"type": "error", "message": str(exc)}):
+                return  # 连接已断开，提前退出
 
-    await websocket.send_json({"type": "group_complete"})
+    await _safe_send_json(websocket, {"type": "group_complete"})

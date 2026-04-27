@@ -40,11 +40,42 @@ export interface Conversation {
   isStreaming: boolean
 }
 
+export interface WSStreamTokenMessage {
+  type: 'ai_stream_token' | 'group_stream_token' | 'story_stream_token' | 'undercover_stream_token' | 'werewolf_stream_token' | 'debate_stream_token';
+  model_name: string;
+  token: string;
+  display_name?: string;
+}
+
+export interface WSCompleteMessage {
+  type: 'ai_complete' | 'group_complete' | 'story_complete' | 'undercover_complete' | 'werewolf_complete' | 'debate_complete';
+  model_name?: string;
+}
+
+export interface WSErrorMessage {
+  type: 'error';
+  message: string;
+}
+
+export interface WSChatMessage {
+  type: 'chat';
+  chat_type: ChatType;
+  model_name?: string;
+  group_id?: string;
+  message: string;
+  history: { role: string; content: string; sender?: string; display_name?: string }[];
+}
+
+export interface WSGroupReplyMessage {
+  type: 'group_reply';
+  model_name: string;
+  display_name?: string;
+  content: string;
+}
+
 export type WSMessage =
-  | { type: 'chat'; chat_type: ChatType; model_name?: string; group_id?: string; message: string; history: { role: string; content: string; sender?: string; display_name?: string }[] }
-  | { type: 'ai_stream_token'; model_name: string; token: string }
-  | { type: string; model_name?: string; token?: string; display_name?: string; [key: string]: any }
-  | { type: 'ai_complete'; model_name: string }
-  | { type: 'group_reply'; model_name: string; display_name?: string; content: string }
-  | { type: 'group_complete' }
-  | { type: 'error'; message: string }
+  | WSChatMessage
+  | WSStreamTokenMessage
+  | WSCompleteMessage
+  | WSGroupReplyMessage
+  | WSErrorMessage

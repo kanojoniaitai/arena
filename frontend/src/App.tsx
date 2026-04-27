@@ -114,24 +114,29 @@ export default function App() {
     const activeConv = conversations.get(activeConvId)
     if (!activeConv) return
 
-    if (lastMessage.type === 'ai_stream_token') {
-      if (activeConv.type === 'private' && activeConv.model_name === lastMessage.model_name) {
+    // 处理流式 token 消息
+    if (lastMessage.type === 'ai_stream_token' || lastMessage.type.endsWith('_stream_token')) {
+      const msg = lastMessage as { type: string; model_name: string; token: string; display_name?: string }
+      const isPrivateStream = lastMessage.type === 'ai_stream_token' && activeConv.type === 'private' && activeConv.model_name === msg.model_name
+      const isGroupStream = lastMessage.type === 'group_stream_token' && activeConv.type === 'group'
+      
+      if (isPrivateStream || isGroupStream) {
         setConversations(prev => {
           const next = new Map(prev)
           const conv = next.get(activeConvId!)
           if (!conv) return prev
           const msgs = [...conv.messages]
           const lastMsg = msgs[msgs.length - 1]
-          if (lastMsg && lastMsg.role === 'assistant' && lastMsg.sender === lastMessage.model_name) {
-            msgs[msgs.length - 1] = { ...lastMsg, content: lastMsg.content + lastMessage.token }
+          if (lastMsg && lastMsg.role === 'assistant' && lastMsg.sender === msg.model_name) {
+            msgs[msgs.length - 1] = { ...lastMsg, content: lastMsg.content + msg.token }
           } else {
-            const model = models.find(m => m.name === lastMessage.model_name)
+            const model = models.find(m => m.name === msg.model_name)
             msgs.push({
               id: generateId(),
               role: 'assistant',
-              content: lastMessage.token,
-              sender: lastMessage.model_name,
-              display_name: model?.display_name,
+              content: msg.token,
+              sender: msg.model_name,
+              display_name: msg.display_name || model?.display_name,
               avatar: model?.avatar || '🤖',
               timestamp: Date.now(),
             })
@@ -140,36 +145,9 @@ export default function App() {
           return next
         })
       }
-    } else if (lastMessage.type.endsWith('_stream_token')) {
-      const typePrefix = lastMessage.type.replace('_stream_token', '')
-      if (activeConv.type === typePrefix) {
-        setConversations(prev => {
-          const next = new Map(prev)
-          const conv = next.get(activeConvId!)
-          if (!conv) return prev
-          const msgs = [...conv.messages]
-          const lastMsg = msgs[msgs.length - 1]
-          if (lastMsg && lastMsg.role === 'assistant' && lastMsg.sender === lastMessage.model_name) {
-            msgs[msgs.length - 1] = { ...lastMsg, content: lastMsg.content + lastMessage.token }
-          } else {
-            const model = models.find(m => m.name === lastMessage.model_name)
-            const newMsg: ChatMessage = {
-              id: generateId(),
-              role: 'assistant',
-              content: lastMessage.token,
-              sender: lastMessage.model_name,
-              display_name: lastMessage.display_name || model?.display_name,
-              avatar: model?.avatar || '🤖',
-              timestamp: Date.now(),
-            }
-            msgs.push(newMsg)
-          }
-          next.set(activeConvId!, { ...conv, messages: msgs, isStreaming: true })
-          return next
-        })
-      }
     } else if (lastMessage.type === 'ai_complete') {
-      if (activeConv.type === 'private' && activeConv.model_name === lastMessage.model_name) {
+      const msg = lastMessage as { type: 'ai_complete'; model_name: string }
+      if (activeConv.type === 'private' && activeConv.model_name === msg.model_name) {
         setConversations(prev => {
           const next = new Map(prev)
           const conv = next.get(activeConvId!)
@@ -189,10 +167,11 @@ export default function App() {
         })
       }
     } else if (lastMessage.type === 'error') {
+      const msg = lastMessage as { type: 'error'; message: string }
       const errorMsg: ChatMessage = {
         id: generateId(),
         role: 'assistant',
-        content: `⚠️ 错误: ${lastMessage.message}`,
+        content: `⚠️ 错误: ${msg.message}`,
         timestamp: Date.now(),
       }
       setConversations(prev => {
