@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  --color-wechat-green: #07c160;
+  --color-wechat-green-dark: #06ad56;
+  --color-wechat-bg: #ededed;
+  --color-wechat-sidebar: #e7e7e7;
+  --color-wechat-chat-bg: #f5f5f5;
+  --color-wechat-user-bubble: #95ec69;
+  --color-wechat-bot-bubble: #ffffff;
+  --color-wechat-text: #1a1a1a;
+  --color-wechat-text-secondary: #888888;
+  --color-wechat-border: #d9d9d9;
+  --color-wechat-hover: #d4d4d4;
+  --color-wechat-active: #c4c4c4;
+  --color-debate-pro: #3b82f6;
+  --color-debate-con: #ef4444;
+  --color-debate-bg: #6366f1;
+  --color-story-bg: #8b5cf6;
+  --color-story-accent: #a855f7;
+  --color-undercover-bg: #f59e0b;
+  --color-undercover-civilian: #10b981;
+  --color-undercover-undercover: #ef4444;
+  --color-werewolf-bg: #6366f1;
+  --color-werewolf-wolf: #dc2626;
+  --color-werewolf-good: #2563eb;
+  --color-werewolf-night: #1e1b4b;
+  --color-werewolf-day: #fef3c7;
+}

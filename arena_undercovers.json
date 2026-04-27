@@ -1,0 +1,56 @@
+[
+  {
+    "id": "2d45d4a5-2a20-4e38-8f0b-ed18c1229844",
+    "name": "谁是卧底",
+    "members": [
+      "Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-Q8_K_P",
+      "gemma-4-E4B-it-uncensored-Q4_K_M",
+      "gemma-4-E4B-it-uncensored-Q8_0",
+      "Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q6_K_P",
+      "Gemopus-4-E4B-it-Preview-Q6_K",
+      "L3.2-Rogue-Creative-Instruct-Uncensored-Abliterated-7B-D_AU-Q6_k",
+      "Llama3.3-8B-Instruct-Thinking-Heretic-Uncensored-Claude-4.5-Opus-High-Reasoning.i1-Q6_K",
+      "Qwen3-8B-Hivemind-Inst-Hrtic-Ablit-Uncensored-Q6_K-imat",
+      "Qwen3.5-9B.Q5_K_S",
+      "Qwen3.5-9B.Q8_0",
+      "Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-Q4_K_M"
+    ],
+    "civilian_word": "火锅",
+    "undercover_word": "炖汤",
+    "undercover_indices": [
+      0,
+      6
+    ],
+    "current_round": 1,
+    "phase": "describe",
+    "eliminated": [
+      "gemma-4-E4B-it-uncensored-Q4_K_M"
+    ],
+    "game_over": false,
+    "winner": null
+  },
+  {
+    "id": "01183241-e79f-47e7-a7d7-64da2f85a4d7",
+    "name": "卧底游戏",
+    "members": [
+      "Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-Q8_K_P",
+      "gemma-4-E4B-it-uncensored-Q4_K_M",
+      "gemma-4-E4B-it-uncensored-Q8_0",
+      "Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q6_K_P",
+      "Gemopus-4-E4B-it-Preview-Q6_K",
+      "L3.2-Rogue-Creative-Instruct-Uncensored-Abliterated-7B-D_AU-Q6_k",
+      "Llama3.3-8B-Instruct-Thinking-Heretic-Uncensored-Claude-4.5-Opus-High-Reasoning.i1-Q6_K"
+    ],
+    "civilian_word": "咖啡",
+    "undercover_word": "茶",
+    "undercover_indices": [
+      0,
+      6
+    ],
+    "current_round": 1,
+    "phase": "describe",
+    "eliminated": [],
+    "game_over": false,
+    "winner": null
+  }
+]
