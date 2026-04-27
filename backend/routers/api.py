@@ -37,6 +37,10 @@ class ChatHistorySaveRequest(BaseModel):
     messages: list[dict]
 
 
+class BatchHistorySaveRequest(BaseModel):
+    history: dict[str, list[dict]]
+
+
 class DebateCreateRequest(BaseModel):
     topic: str
     pro_model: str
@@ -430,6 +434,12 @@ async def save_history(body: ChatHistorySaveRequest):
     history = load_chat_history()
     history[body.conv_id] = body.messages
     save_chat_history(history)
+    return {"status": "ok"}
+
+
+@router.post("/history/batch")
+async def save_history_batch(body: BatchHistorySaveRequest):
+    save_chat_history(body.history)
     return {"status": "ok"}
 
 

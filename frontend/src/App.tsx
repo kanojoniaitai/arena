@@ -224,24 +224,17 @@ export default function App() {
         }
       })
       try {
-        await fetch(`${API_BASE}/api/history`, {
+        await fetch(`${API_BASE}/api/history/batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ conv_id: '_batch', messages: [] }),
+          body: JSON.stringify({ history }),
         })
-        for (const [convId, messages] of Object.entries(history)) {
-          await fetch(`${API_BASE}/api/history`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ conv_id: convId, messages }),
-          })
-        }
       } catch {
         // ignore
       }
     }
     
-    const timeoutId = setTimeout(saveHistory, 1000)
+    const timeoutId = setTimeout(saveHistory, 2000)
     return () => clearTimeout(timeoutId)
   }, [conversations])
 
@@ -277,6 +270,50 @@ export default function App() {
           return next
         })
       }
+    } else if (lastMessage.type.endsWith('_stream_token')) {
+      const typePrefix = lastMessage.type.replace('_stream_token', '')
+      if (activeConv.type === typePrefix) {
+        setConversations(prev => {
+          const next = new Map(prev)
+          const conv = next.get(activeConvId!)
+          if (!conv) return prev
+          const msgs = [...conv.messages]
+          const lastMsg = msgs[msgs.length - 1]
+          if (lastMsg && lastMsg.role === 'assistant' && lastMsg.sender === lastMessage.model_name) {
+            msgs[msgs.length - 1] = { ...lastMsg, content: lastMsg.content + lastMessage.token }
+          } else {
+            const model = models.find(m => m.name === lastMessage.model_name)
+            const newMsg: ChatMessage = {
+              id: generateId(),
+              role: 'assistant',
+              content: lastMessage.token,
+              sender: lastMessage.model_name,
+              display_name: lastMessage.display_name || model?.display_name,
+              avatar: model?.avatar || '🤖',
+              timestamp: Date.now(),
+            }
+            if (typePrefix === 'debate') {
+              newMsg.side = lastMessage.side
+              newMsg.round = lastMessage.round
+              conv.current_round = lastMessage.round
+            } else if (typePrefix === 'story') {
+              newMsg.turn = lastMessage.turn
+            } else if (typePrefix === 'undercover') {
+              newMsg.round = lastMessage.round
+              newMsg.phase = lastMessage.phase
+              newMsg.is_undercover = lastMessage.is_undercover
+            } else if (typePrefix === 'werewolf') {
+              newMsg.round = lastMessage.round
+              newMsg.phase = lastMessage.phase
+              newMsg.sub_phase = lastMessage.sub_phase
+              newMsg.werewolf_role = lastMessage.role
+            }
+            msgs.push(newMsg)
+          }
+          next.set(activeConvId!, { ...conv, messages: msgs, isStreaming: true })
+          return next
+        })
+      }
     } else if (lastMessage.type === 'ai_complete') {
       if (activeConv.type === 'private' && activeConv.model_name === lastMessage.model_name) {
         setConversations(prev => {
@@ -284,26 +321,6 @@ export default function App() {
           const conv = next.get(activeConvId!)
           if (!conv) return prev
           next.set(activeConvId!, { ...conv, isStreaming: false })
-          return next
-        })
-      }
-    } else if (lastMessage.type === 'group_reply') {
-      if (activeConv.type === 'group') {
-        const model = models.find(m => m.name === lastMessage.model_name)
-        const newMsg: ChatMessage = {
-          id: generateId(),
-          role: 'assistant',
-          content: lastMessage.content,
-          sender: lastMessage.model_name,
-          display_name: lastMessage.display_name || model?.display_name,
-          avatar: model?.avatar || '🤖',
-          timestamp: Date.now(),
-        }
-        setConversations(prev => {
-          const next = new Map(prev)
-          const conv = next.get(activeConvId!)
-          if (!conv) return prev
-          next.set(activeConvId!, { ...conv, messages: [...conv.messages, newMsg], isStreaming: true })
           return next
         })
       }
@@ -317,28 +334,6 @@ export default function App() {
           return next
         })
       }
-    } else if (lastMessage.type === 'debate_reply') {
-      if (activeConv.type === 'debate') {
-        const model = models.find(m => m.name === lastMessage.model_name)
-        const newMsg: ChatMessage = {
-          id: generateId(),
-          role: 'assistant',
-          content: lastMessage.content,
-          sender: lastMessage.model_name,
-          display_name: lastMessage.display_name || model?.display_name,
-          avatar: model?.avatar || '🤖',
-          timestamp: Date.now(),
-          side: lastMessage.side,
-          round: lastMessage.round,
-        }
-        setConversations(prev => {
-          const next = new Map(prev)
-          const conv = next.get(activeConvId!)
-          if (!conv) return prev
-          next.set(activeConvId!, { ...conv, messages: [...conv.messages, newMsg], isStreaming: true, current_round: lastMessage.round })
-          return next
-        })
-      }
     } else if (lastMessage.type === 'debate_round_complete') {
       if (activeConv.type === 'debate') {
         setConversations(prev => {
@@ -346,27 +341,6 @@ export default function App() {
           const conv = next.get(activeConvId!)
           if (!conv) return prev
           next.set(activeConvId!, { ...conv, isStreaming: false })
-          return next
-        })
-      }
-    } else if (lastMessage.type === 'story_reply') {
-      if (activeConv.type === 'story') {
-        const model = models.find(m => m.name === lastMessage.model_name)
-        const newMsg: ChatMessage = {
-          id: generateId(),
-          role: 'assistant',
-          content: lastMessage.content,
-          sender: lastMessage.model_name,
-          display_name: lastMessage.display_name || model?.display_name,
-          avatar: model?.avatar || '🤖',
-          timestamp: Date.now(),
-          turn: lastMessage.turn,
-        }
-        setConversations(prev => {
-          const next = new Map(prev)
-          const conv = next.get(activeConvId!)
-          if (!conv) return prev
-          next.set(activeConvId!, { ...conv, messages: [...conv.messages, newMsg], isStreaming: true })
           return next
         })
       }
@@ -380,29 +354,6 @@ export default function App() {
           return next
         })
       }
-    } else if (lastMessage.type === 'undercover_reply') {
-      if (activeConv.type === 'undercover') {
-        const model = models.find(m => m.name === lastMessage.model_name)
-        const newMsg: ChatMessage = {
-          id: generateId(),
-          role: 'assistant',
-          content: lastMessage.content,
-          sender: lastMessage.model_name,
-          display_name: lastMessage.display_name || model?.display_name,
-          avatar: model?.avatar || '🤖',
-          timestamp: Date.now(),
-          round: lastMessage.round,
-          phase: lastMessage.phase,
-          is_undercover: lastMessage.is_undercover,
-        }
-        setConversations(prev => {
-          const next = new Map(prev)
-          const conv = next.get(activeConvId!)
-          if (!conv) return prev
-          next.set(activeConvId!, { ...conv, messages: [...conv.messages, newMsg], isStreaming: true })
-          return next
-        })
-      }
     } else if (lastMessage.type === 'undercover_phase_complete') {
       if (activeConv.type === 'undercover') {
         setConversations(prev => {
@@ -410,30 +361,6 @@ export default function App() {
           const conv = next.get(activeConvId!)
           if (!conv) return prev
           next.set(activeConvId!, { ...conv, isStreaming: false })
-          return next
-        })
-      }
-    } else if (lastMessage.type === 'werewolf_reply') {
-      if (activeConv.type === 'werewolf') {
-        const model = models.find(m => m.name === lastMessage.model_name)
-        const newMsg: ChatMessage = {
-          id: generateId(),
-          role: 'assistant',
-          content: lastMessage.content,
-          sender: lastMessage.model_name,
-          display_name: lastMessage.display_name || model?.display_name,
-          avatar: model?.avatar || '🤖',
-          timestamp: Date.now(),
-          round: lastMessage.round,
-          phase: lastMessage.phase,
-          sub_phase: lastMessage.sub_phase,
-          werewolf_role: lastMessage.role,
-        }
-        setConversations(prev => {
-          const next = new Map(prev)
-          const conv = next.get(activeConvId!)
-          if (!conv) return prev
-          next.set(activeConvId!, { ...conv, messages: [...conv.messages, newMsg], isStreaming: true })
           return next
         })
       }

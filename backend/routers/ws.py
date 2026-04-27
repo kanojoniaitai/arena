@@ -118,23 +118,55 @@ def _get_model_params(spec):
     }
 
 
+class ModelManager:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.infer_lock = threading.Lock()
+        self.current_path: str | None = None
+        self.llm: Llama | None = None
+
+    def get_model(self, path: str) -> Llama:
+        with self.lock:
+            if self.current_path == path and self.llm is not None:
+                return self.llm
+            
+            if self.llm is not None:
+                try:
+                    if hasattr(self.llm, 'close'):
+                        self.llm.close()
+                except Exception:
+                    pass
+                finally:
+                    self.llm = None
+                    self.current_path = None
+                    gc.collect()
+
+            self.llm = _load_model(path)
+            self.current_path = path
+            return self.llm
+
+
+model_manager = ModelManager()
+
+
 def _run_model_sync(model_name: str, messages: list[dict[str, str]]) -> str:
     spec = get_model_by_name(model_name)
     if spec is None:
         raise ValueError(f"Model '{model_name}' not found")
-    llm = _load_model(spec.path)
+    llm = model_manager.get_model(spec.path)
     params = _get_model_params(spec)
     try:
         chunks: list[str] = []
-        for token in stream_answer(
-            llm=llm,
-            messages=messages,
-            **params
-        ):
-            chunks.append(token)
+        with model_manager.infer_lock:
+            for token in stream_answer(
+                llm=llm,
+                messages=messages,
+                **params
+            ):
+                chunks.append(token)
         return "".join(chunks)
     finally:
-        _safe_close_llm(llm)
+        pass
 
 
 def _stream_model_to_queue(
@@ -151,17 +183,17 @@ def _stream_model_to_queue(
         "seed": LLM_PARAMS["seed"],
     }
     try:
-        for token in stream_answer(
-            llm=llm,
-            messages=messages,
-            **params
-        ):
-            q.put(token)
+        with model_manager.infer_lock:
+            for token in stream_answer(
+                llm=llm,
+                messages=messages,
+                **params
+            ):
+                q.put(token)
     except Exception as exc:
         q.put(exc)
     finally:
         q.put(None)
-        _safe_close_llm(llm)
 
 
 def _build_messages(
@@ -414,6 +446,48 @@ async def ws_chat(websocket: WebSocket):
         pass
 
 
+async def _run_model_stream(
+    websocket: WebSocket,
+    model_name: str,
+    messages: list[dict[str, str]],
+    stream_type: str,
+    extra_fields: dict,
+) -> str:
+    spec = get_model_by_name(model_name)
+    if spec is None:
+        raise ValueError(f"Model '{model_name}' not found")
+
+    loop = asyncio.get_running_loop()
+    llm = await loop.run_in_executor(executor, model_manager.get_model, spec.path)
+
+    q: queue.Queue = queue.Queue()
+    thread = threading.Thread(
+        target=_stream_model_to_queue,
+        args=(llm, messages, q, spec),
+        daemon=True,
+    )
+    thread.start()
+
+    full_content = []
+    while True:
+        while not q.empty():
+            item = q.get_nowait()
+            if item is None:
+                return "".join(full_content)
+            if isinstance(item, Exception):
+                raise item
+            
+            full_content.append(item)
+            payload = {
+                "type": stream_type,
+                "model_name": model_name,
+                "token": item,
+            }
+            payload.update(extra_fields)
+            await websocket.send_json(payload)
+        await asyncio.sleep(0.02)
+
+
 async def _handle_private(
     websocket: WebSocket,
     model_name: str,
@@ -429,7 +503,7 @@ async def _handle_private(
     messages = _build_messages(system_prompt, message, history)
 
     loop = asyncio.get_running_loop()
-    llm = await loop.run_in_executor(executor, _load_model, spec.path)
+    llm = await loop.run_in_executor(executor, model_manager.get_model, spec.path)
 
     try:
         q: queue.Queue = queue.Queue()
@@ -461,7 +535,7 @@ async def _handle_private(
     except Exception as exc:
         await websocket.send_json({"type": "error", "message": str(exc)})
     finally:
-        await loop.run_in_executor(executor, _safe_close_llm, llm)
+        pass
 
 
 async def _handle_group(
@@ -499,8 +573,12 @@ async def _handle_group(
         msgs = _build_group_messages(system_prompt, message, history, accumulated_responses)
 
         try:
-            content = await loop.run_in_executor(
-                executor, _run_model_sync, member_name, msgs
+            content = await _run_model_stream(
+                websocket,
+                member_name,
+                msgs,
+                "group_stream_token",
+                {"display_name": display_name}
             )
             result = {
                 "type": "group_reply",
@@ -554,8 +632,12 @@ async def _handle_debate(
     pro_msgs = _build_debate_messages(topic, history, "pro", round_num)
 
     try:
-        pro_content = await loop.run_in_executor(
-            executor, _run_model_sync, pro_model, pro_msgs
+        pro_content = await _run_model_stream(
+            websocket,
+            pro_model,
+            pro_msgs,
+            "debate_stream_token",
+            {"display_name": pro_display, "side": "pro", "round": round_num}
         )
         await websocket.send_json({
             "type": "debate_reply",
@@ -581,8 +663,12 @@ async def _handle_debate(
     con_msgs = _build_debate_messages(topic, con_history, "con", round_num)
 
     try:
-        con_content = await loop.run_in_executor(
-            executor, _run_model_sync, con_model, con_msgs
+        con_content = await _run_model_stream(
+            websocket,
+            con_model,
+            con_msgs,
+            "debate_stream_token",
+            {"display_name": con_display, "side": "con", "round": round_num}
         )
         await websocket.send_json({
             "type": "debate_reply",
@@ -639,8 +725,12 @@ async def _handle_story(
         msgs = _build_story_messages(message, history, accumulated_story, i + 1)
 
         try:
-            content = await loop.run_in_executor(
-                executor, _run_model_sync, member_name, msgs
+            content = await _run_model_stream(
+                websocket,
+                member_name,
+                msgs,
+                "story_stream_token",
+                {"display_name": display_name, "turn": i + 1}
             )
             await websocket.send_json({
                 "type": "story_reply",
@@ -713,8 +803,12 @@ async def _handle_undercover(
         )
 
         try:
-            content = await loop.run_in_executor(
-                executor, _run_model_sync, member_name, msgs
+            content = await _run_model_stream(
+                websocket,
+                member_name,
+                msgs,
+                "undercover_stream_token",
+                {"display_name": display_name, "round": round_num, "phase": phase, "is_undercover": is_undercover}
             )
             await websocket.send_json({
                 "type": "undercover_reply",
@@ -825,8 +919,12 @@ async def _handle_werewolf(
         )
 
         try:
-            content = await loop.run_in_executor(
-                executor, _run_model_sync, member_name, msgs
+            content = await _run_model_stream(
+                websocket,
+                member_name,
+                msgs,
+                "werewolf_stream_token",
+                {"display_name": display_name, "role": role, "phase": phase, "sub_phase": sub_phase, "round": game.get("current_round", 1)}
             )
             await websocket.send_json({
                 "type": "werewolf_reply",

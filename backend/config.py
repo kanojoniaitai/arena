@@ -1,6 +1,7 @@
+import os
 from pathlib import Path
 
-BASE_MODEL_DIR = Path(r"E:\local_LLM\Models_Repo")
+BASE_MODEL_DIR = Path(os.environ.get("BASE_MODEL_DIR", r"E:\local_LLM\Models_Repo"))
 APP_TITLE = "Llama.cpp 多模型竞技场 Pro"
 DEFAULT_SYSTEM_PROMPT = (
     "你是一名专业、准确、简洁的中文助手。"

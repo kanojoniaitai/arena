@@ -117,6 +117,7 @@ export interface Conversation {
 export type WSMessage =
   | { type: 'chat'; chat_type: ChatType; model_name?: string; group_id?: string; debate_id?: string; story_id?: string; undercover_id?: string; werewolf_id?: string; message: string; history: { role: string; content: string; sender?: string; display_name?: string; side?: string }[] }
   | { type: 'ai_stream_token'; model_name: string; token: string }
+  | { type: string; model_name?: string; token?: string; display_name?: string; side?: 'pro'|'con'; round?: number; turn?: number; phase?: string; sub_phase?: string; role?: string; is_undercover?: boolean; [key: string]: any }
   | { type: 'ai_complete'; model_name: string }
   | { type: 'group_reply'; model_name: string; display_name?: string; content: string }
   | { type: 'group_complete' }
